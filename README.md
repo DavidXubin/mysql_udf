@@ -6,9 +6,9 @@ The 1st parameter is a cyphertext in hex string
 
 The 2nd parameter is a key
 
-Below is just an example:
+Below is just an example, the key is concealed and replaced by 'XXXXXXX':
 
-mysql> select my_des_decrypt(UNHEX('537CDA02C769F96F4741AB88DB836237F218B39B28644905'), "XXXXXXXXX");
+mysql> select my_des_decrypt(UNHEX('537CDA02C769F96F4741AB88DB836237F218B39B28644905'), "XXXXXXXX");
 
 +---------------------------------------------------------------------------------------+
 
