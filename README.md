@@ -1,7 +1,9 @@
 This is an DES CBC PKS decryptor for mysql_udf
 
 Usage:
+
 The 1st parameter is a cyphertext in hex string
+
 The 2nd parameter is a key
 
 mysql> select my_des_decrypt(UNHEX('537CDA02C769F96F4741AB88DB836237F218B39B28644905'), "password");
