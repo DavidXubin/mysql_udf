@@ -1,4 +1,5 @@
 /* src/mysql_des_config.h.in.  Generated from configure.ac by autoheader.  */
+#include "mysql_des_conflict.h"
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
