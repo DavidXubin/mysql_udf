@@ -48,15 +48,98 @@ void handleErrors(void)
 
 }
 
-int encrypt_internal(unsigned char *ciphertext, unsigned char *plaintext, int plaintext_len, unsigned char *key)
+unsigned char *hex2bin(const char *data, int size, int *outlen)
+{
+    int i = 0;
+    int len = 0;
+    char char1 = '\0';
+    char char2 = '\0';
+    unsigned char value = 0;
+    unsigned char *out = NULL;
+
+    if (size % 2 != 0) {
+        return NULL;
+    }
+
+    len = size / 2;
+    out = (unsigned char *)malloc(len * sizeof(char) + 1);
+    if (out == NULL) {
+        return NULL;
+    }
+
+    while (i < len) {
+        char1 = *data;
+        if (char1 >= '0' && char1 <= '9') {
+            value = (char1 - '0') << 4;
+        }
+        else if (char1 >= 'a' && char1 <= 'f') {
+            value = (char1 - 'a' + 10) << 4;
+        }
+        else if (char1 >= 'A' && char1 <= 'F') {
+            value = (char1 - 'A' + 10) << 4;
+        }
+        else {
+            free(out);
+            return NULL;
+        }
+        data++;
+
+        char2 = *data;
+        if (char2 >= '0' && char2 <= '9') {
+            value |= char2 - '0';
+        }
+        else if (char2 >= 'a' && char2 <= 'f') {
+            value |= char2 - 'a' + 10;
+        }
+        else if (char2 >= 'A' && char2 <= 'F') {
+            value |= char2 - 'A' + 10;
+        }
+        else {
+            free(out);
+            return NULL;
+        }
+
+        data++;
+        *(out + i++) = value;
+    }
+    *(out + i) = '\0';
+
+    if (outlen != NULL) {
+        *outlen = i;
+    }
+
+    return out;
+}
+
+char *bin2hex(unsigned char *data, int size)
+{
+    int  i = 0;
+    int  v = 0;
+    char *p = NULL;
+    char *buf = NULL;
+    char base_char = 'A';
+
+    buf = p = (char *)malloc(size * 2 + 1);
+    for (i = 0; i < size; i++) {
+        v = data[i] >> 4;
+        *p++ = v < 10 ? v + '0' : v - 10 + base_char;
+
+        v = data[i] & 0x0f;
+        *p++ = v < 10 ? v + '0' : v - 10 + base_char;
+    }
+
+    *p = '\0';
+    return buf;
+}
+
+
+int encrypt_internal(unsigned char *ciphertext, unsigned char *plaintext, int plaintext_len, unsigned char *key, unsigned char *iv)
 {
 	EVP_CIPHER_CTX *ctx = NULL;
 
 	int len = 0;
 
 	int ciphertext_len = 0;
-	
-	unsigned char *iv = (unsigned char *)"12345678";
 
 	/* Create and initialise the context */
 	if(!(ctx = EVP_CIPHER_CTX_new())) {
@@ -68,7 +151,7 @@ int encrypt_internal(unsigned char *ciphertext, unsigned char *plaintext, int pl
 	/* Initialise the encryption operation. IMPORTANT - ensure you use a key
 	* and IV size appropriate for your cipher
 	*/
-	if(1 != EVP_EncryptInit_ex(ctx, EVP_des_cbc(), NULL, key, iv)) {  
+	if(1 != EVP_EncryptInit_ex(ctx, EVP_des_cbc(), NULL, key, iv)) {
 
 		handleErrors();
 		return -1;
@@ -99,15 +182,14 @@ int encrypt_internal(unsigned char *ciphertext, unsigned char *plaintext, int pl
 	return ciphertext_len;
 }
 
-int decrypt_internal(unsigned char *plaintext, unsigned char *ciphertext, int ciphertext_len, unsigned char *key)
+int decrypt_internal(unsigned char *plaintext, unsigned char *ciphertext, int ciphertext_len, unsigned char *key, unsigned char *iv)
 {
 	EVP_CIPHER_CTX *ctx = NULL;
 
 	int len = 0;
 
 	int plaintext_len = 0;
-	
-    unsigned char *iv = (unsigned char *)"12345678";
+
 
 	/* Create and initialise the context */
 	if(!(ctx = EVP_CIPHER_CTX_new())) {
@@ -151,32 +233,21 @@ int decrypt_internal(unsigned char *plaintext, unsigned char *ciphertext, int ci
 
 EXPORT_API my_bool my_des_decrypt_init(UDF_INIT * initid, UDF_ARGS * args, char * message)
 {
-	int i = 0;
-
-	if (args->arg_count != 2) {
+	if (args->arg_count != 3) {
 		sprintf (
 			message,
-			"\n%s requires two arguments (udf: %s)\n",
+			"\n%s requires 3 arguments (udf: %s)\n",
 			__FUNCTION__, __FUNCTION__
 		);
 		return false;
 	}
 
-	for (i = 1; i < 2; i++) {
+	for (int i = 0; i < 3; i++) {
 		if (!args->args[i] || !args->lengths[i]) {
 			sprintf (
 				message,
 				"%dst argument is missing (udf: %s)\n",
 				i + 1, __FUNCTION__
-			);
-
-			fprintf (
-				stderr,
-				"  - %dst Argument:\n"
-				"    - type   : %d\n"
-				"    - data   : %s\n"
-				"    - length : %ld\n",
-				i + 1, args->arg_type[i], args->args[i], args->lengths[i]
 			);
 
 			return false;
@@ -185,10 +256,10 @@ EXPORT_API my_bool my_des_decrypt_init(UDF_INIT * initid, UDF_ARGS * args, char 
 		if (args->arg_type[i] != STRING_RESULT) {
 			sprintf (
 				message,
-				"%dst argument is must string (udf: %s)\n",
+				"%dst argument must be string (udf: %s)\n",
 				i + 1, __FUNCTION__
 			);
-			
+
 			return false;
 		}
 	}
@@ -198,7 +269,7 @@ EXPORT_API my_bool my_des_decrypt_init(UDF_INIT * initid, UDF_ARGS * args, char 
 
 	if ((initid->ptr = malloc(sizeof(char) * initid->max_length)) == NULL) {
 		sprintf (
-			message, 
+			message,
 			"Failed Memory allocated (udf: %s)\n",
 			__FUNCTION__
 		);
@@ -209,33 +280,41 @@ EXPORT_API my_bool my_des_decrypt_init(UDF_INIT * initid, UDF_ARGS * args, char 
 	return true;
 }
 
-EXPORT_API char* my_des_decrypt(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args, char *result, unsigned long *length,  char *is_null, char *error __attribute__((unused))) 
-{	
-    //fprintf (stderr, "  - data    : %s (udf: %s:%d)\n", args->args[0], __FILE__, __LINE__);
-    //fprintf (stderr, "  - datalen : %u (%zd) (udf: %s:%d)\n", args->lengths[0], strlen ((char *) args->args[0]), __FILE__, __LINE__);
-    //fprintf (stderr, "  - key     : %s (udf: %s:%d)\n", args->args[1], __FILE__, __LINE__);
-    //fprintf (stderr, "  - keylen  : %u (udf: %s:%d)\n", args->lengths[1], __FILE__, __LINE__);
-			  	
+EXPORT_API char* my_des_decrypt(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args, char *result, unsigned long *length,  char *is_null, char *error __attribute__((unused)))
+{
 	unsigned char *ciphertext = (unsigned char *)(args->args[0]);
 	int ciphertext_len = (int)(args->lengths[0]);
-	
-	unsigned char *key =  (unsigned char *)(args->args[1]);
-	
-    *is_null = 0;
 
-	int plaintext_len = decrypt_internal(initid->ptr, ciphertext, ciphertext_len, key);
-	
-	if (plaintext_len < 0) {
-        *is_null = 1;
+	unsigned char *key = (unsigned char *)(args->args[1]);
+
+	unsigned char *iv = (unsigned char *)(args->args[2]);
+
+	*is_null = 0;
+
+	unsigned char* pCiphertext = hex2bin(ciphertext, ciphertext_len, &ciphertext_len);
+
+	if(pCiphertext == NULL) {
+		*is_null = 1;
 		return NULL;
-	}	
-	
+	}
+
+	int plaintext_len = decrypt_internal(initid->ptr, pCiphertext, ciphertext_len, key, iv);
+
+	if(plaintext_len < 0) {
+        *is_null = 1;
+
+		free(pCiphertext);
+		return NULL;
+	}
+
 	result = initid->ptr;
 	result[plaintext_len] = '\0';
 	*length = (unsigned int)plaintext_len;
 
-	return result;	
-				  
+	free(pCiphertext);
+
+	return result;
+
 }
 
 EXPORT_API void my_des_decrypt_deinit(UDF_INIT * initid __attribute__((unused)))
