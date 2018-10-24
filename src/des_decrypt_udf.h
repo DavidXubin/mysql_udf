@@ -36,4 +36,10 @@ EXPORT_API char* my_des_decrypt(UDF_INIT *initid, UDF_ARGS *args, char *result, 
 EXPORT_API void my_des_decrypt_deinit(UDF_INIT * initid);
 
 
+EXPORT_API my_bool my_des_encrypt_init(UDF_INIT * initid, UDF_ARGS * args, char * message);
+EXPORT_API char* my_des_encrypt(UDF_INIT *initid, UDF_ARGS *args, char *result, unsigned long *length,
+                char *is_null, char *error);
+EXPORT_API void my_des_encrypt_deinit(UDF_INIT * initid);
+
+
 #endif

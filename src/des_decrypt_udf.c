@@ -111,24 +111,28 @@ unsigned char *hex2bin(const char *data, int size, int *outlen)
     return out;
 }
 
-char *bin2hex(unsigned char *data, int size)
+char *bin2hex(unsigned char *data, int size, int *outlen)
 {
-    int  i = 0;
-    int  v = 0;
-    char *p = NULL;
-    char *buf = NULL;
-    char base_char = 'A';
+	int  i = 0;
+	int  v = 0;
+	char *p = NULL;
+	char *buf = NULL;
+	char base_char = 'A';
 
-    buf = p = (char *)malloc(size * 2 + 1);
-    for (i = 0; i < size; i++) {
-        v = data[i] >> 4;
-        *p++ = v < 10 ? v + '0' : v - 10 + base_char;
+	buf = p = (char *)malloc(size * 2 + 1);
+	for (i = 0; i < size; i++) {
+		v = data[i] >> 4;
+		*p++ = v < 10 ? v + '0' : v - 10 + base_char;
 
-        v = data[i] & 0x0f;
-        *p++ = v < 10 ? v + '0' : v - 10 + base_char;
-    }
+		v = data[i] & 0x0f;
+		*p++ = v < 10 ? v + '0' : v - 10 + base_char;
+	}
 
-    *p = '\0';
+	*p = '\0';
+	if (outlen != NULL) {
+		*outlen = size * 2;
+	}
+
     return buf;
 }
 
@@ -242,7 +246,9 @@ EXPORT_API my_bool my_des_decrypt_init(UDF_INIT * initid, UDF_ARGS * args, char 
 		return false;
 	}
 
-	for (int i = 0; i < 3; i++) {
+	int i = 0;
+
+	for (i = 0; i < 3; i++) {
 		if (!args->args[i] || !args->lengths[i]) {
 			sprintf (
 				message,
@@ -314,7 +320,6 @@ EXPORT_API char* my_des_decrypt(UDF_INIT *initid __attribute__((unused)), UDF_AR
 	free(pCiphertext);
 
 	return result;
-
 }
 
 EXPORT_API void my_des_decrypt_deinit(UDF_INIT * initid __attribute__((unused)))
@@ -324,6 +329,102 @@ EXPORT_API void my_des_decrypt_deinit(UDF_INIT * initid __attribute__((unused)))
 		initid->ptr = NULL;
 	}
 }
+
+
+EXPORT_API my_bool my_des_encrypt_init(UDF_INIT * initid, UDF_ARGS * args, char * message)
+{
+	if (args->arg_count != 3) {
+		sprintf (
+			message,
+			"\n%s requires 3 arguments (udf: %s)\n",
+			__FUNCTION__, __FUNCTION__
+		);
+		return false;
+	}
+
+	int i = 0;
+
+	for(i = 0; i < 3; i++) {
+		if (!args->args[i] || !args->lengths[i]) {
+			sprintf (
+				message,
+				"%dst argument is missing (udf: %s)\n",
+				i + 1, __FUNCTION__
+			);
+			return false;
+		}
+
+		if (args->arg_type[i] != STRING_RESULT) {
+			sprintf (
+				message,
+				"%dst argument must be string (udf: %s)\n",
+				i + 1, __FUNCTION__
+			);
+			return false;
+		}
+	}
+
+	initid->maybe_null = 1;
+	initid->max_length = DES_BLOCK_SIZE * (args->lengths[0] / DES_BLOCK_SIZE) + DES_BLOCK_SIZE;
+
+	if((initid->ptr = malloc (sizeof(char) * initid->max_length)) == NULL) {
+		sprintf (
+			message,
+			"Failed Memory allocated (udf: %s)\n",
+			__FUNCTION__
+		);
+		return false;
+	}
+	memset(initid->ptr, 0, initid->max_length);
+
+	return true;
+}
+
+EXPORT_API char* my_des_encrypt(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args, char *result, unsigned long *length,  char *is_null, char *error __attribute__((unused)))
+{
+	unsigned char *plaintext = (unsigned char *)(args->args[0]);
+	int plaintext_len = (int)(args->lengths[0]);
+
+	unsigned char *key = (unsigned char *)(args->args[1]);
+
+	unsigned char *iv = (unsigned char *)(args->args[2]);
+
+	*is_null = 0;
+
+	int ciphertext_len = encrypt_internal(initid->ptr, plaintext, plaintext_len, key, iv);
+
+	if(ciphertext_len < 0) {
+		*is_null = 1;
+		return NULL;
+	}
+
+	char* pCiphertext = bin2hex(initid->ptr, ciphertext_len, &ciphertext_len);
+	if(initid->ptr) {
+		free(initid->ptr);
+	}
+
+	initid->ptr = pCiphertext;
+
+	if(pCiphertext == NULL) {
+		*is_null = 1;
+		return NULL;
+	}
+
+	result = initid->ptr;
+	result[ciphertext_len] = '\0';
+	*length = (unsigned int)ciphertext_len;
+
+	return result;
+}
+
+EXPORT_API void my_des_encrypt_deinit(UDF_INIT * initid __attribute__((unused)))
+{
+	if(initid->ptr) {
+		free(initid->ptr);
+		initid->ptr = NULL;
+	}
+}
+
 
 #endif /* HAVE_DLOPEN */
 

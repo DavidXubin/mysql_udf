@@ -1,6 +1,8 @@
-This is an DES CBC PKS decryptor for mysql_udf
+This is an DES CBC PKS encryption/decryption of mysql udf
 
 Usage:
+
+For DES decryption:
 
 The 1st parameter is a cyphertext in hex string
 
@@ -23,6 +25,25 @@ mysql> select my_des_decrypt('537CDA02C769F96F4741AB88DB836237F218B39B28644905',
 +---------------------------------------------------------------------------------------+
 
 1 row in set (0.00 sec)
+
+For DES encrytion:
+
+The 1st parameter is a plain text
+
+The 2nd parameter is a key
+
+The 3rd parameter is IV
+
+Below is just an example, the key is concealed and replaced by 'XXXXXXX', the IV is concealed and replaced by "YYYYYYYY"
+
+mysql> select my_des_encrypt('500382198812300646', "XXXXXXXX", "YYYYYYYY");
++--------------------------------------------------------------+
+| my_des_encrypt('500382198812300646', "XXXXXXXX", "YYYYYYYY") |
++--------------------------------------------------------------+
+| 537CDA02C769F96F4741AB88DB836237F218B39B28644905             |
++--------------------------------------------------------------+
+1 row in set (0.00 sec)
+
 
 Install:
 
